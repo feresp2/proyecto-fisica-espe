@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Proyecto Física - ESPE</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1, h2 { text-align: center; }
+    #formulario { max-width: 400px; margin: 20px auto; }
+    label { display: block; margin-top: 10px; }
+    input[type="number"] { width: 100%; padding: 5px; font-size: 1em; }
+    button { margin-top: 20px; padding: 10px; width: 100%; font-size: 1.2em; cursor: pointer; }
+    #resultado { margin-top: 20px; white-space: pre-line; }
+  </style>
+</head>
+<body>
+
+  <div style="text-align:center; margin-bottom: 20px;">
+    <img src="logo-espe.png" alt="Logo ESPE" style="max-width: 150px; height: auto;" />
+  </div>
+
+  <h1>BIENVENIDOS A LA UNIVERSIDAD DE LAS FUERZAS ARMADAS "ESPE"</h1>
+  <h2>PROYECTO DE FÍSICA</h2>
+
+  <div style="text-align:center;">
+    <button id="btnComenzar">Comenzar</button>
+  </div>
+
+  <div id="formulario" style="display:none;">
+    <label for="sistema">Sistema de Coordenadas:</label>
+    <select id="sistema">
+      <option value="rect">Rectangulares</option>
+      <option value="esfer">Esféricas</option>
+      <option value="cilin">Cilíndricas</option>
+    </select>
+
+    <div id="inputsRect">
+      <label for="x">X:</label>
+      <input type="number" id="x" step="any" value="0" />
+      <label for="y">Y:</label>
+      <input type="number" id="y" step="any" value="0" />
+      <label for="z">Z:</label>
+      <input type="number" id="z" step="any" value="0" />
+    </div>
+
+    <div id="inputsEsfer" style="display:none;">
+      <label for="r">r:</label>
+      <input type="number" id="r" step="any" value="0" />
+      <label for="theta">θ (grados):</label>
+      <input type="number" id="theta" step="any" value="0" />
+      <label for="phi">φ (grados):</label>
+      <input type="number" id="phi" step="any" value="0" />
+    </div>
+
+    <div id="inputsCilin" style="display:none;">
+      <label for="rho">ρ:</label>
+      <input type="number" id="rho" step="any" value="0" />
+      <label for="phi_cilin">φ (grados):</label>
+      <input type="number" id="phi_cilin" step="any" value="0" />
+      <label for="z_cilin">Z:</label>
+      <input type="number" id="z_cilin" step="any" value="0" />
+    </div>
+
+    <button id="btnGraficar">Graficar Vector</button>
+
+    <pre id="resultado"></pre>
+  </div>
+
+  <div id="grafica" style="width: 700px; height: 500px; margin: 0 auto;"></div>
+
+<script>
+  // Funciones de conversión
+  function rect_a_esfericas(x, y, z) {
+    let r = Math.sqrt(x*x + y*y + z*z);
+    let theta = Math.atan2(y, x) * 180/Math.PI; // azimutal
+    let phi = Math.atan2(Math.sqrt(x*x + y*y), z) * 180/Math.PI; // polar
+    return {r, theta, phi};
+  }
+
+  function esfericas_a_rect(r, theta_deg, phi_deg) {
+    let theta = theta_deg * Math.PI/180;
+    let phi = phi_deg * Math.PI/180;
+    let x = r * Math.sin(phi) * Math.cos(theta);
+    let y = r * Math.sin(phi) * Math.sin(theta);
+    let z = r * Math.cos(phi);
+    return {x, y, z};
+  }
+
+  function rect_a_cilindricas(x, y, z) {
+    let rho = Math.sqrt(x*x + y*y);
+    let phi = Math.atan2(y, x) * 180/Math.PI;
+    return {rho, phi, z_cil: z};
+  }
+
+  function cilindricas_a_rect(rho, phi_deg, z_cil) {
+    let phi = phi_deg * Math.PI/180;
+    let x = rho * Math.cos(phi);
+    let y = rho * Math.sin(phi);
+    let z = z_cil;
+    return {x, y, z};
+  }
+
+  // Mostrar/ocultar inputs según sistema
+  const sistema = document.getElementById('sistema');
+  const inputsRect = document.getElementById('inputsRect');
+  const inputsEsfer = document.getElementById('inputsEsfer');
+  const inputsCilin = document.getElementById('inputsCilin');
+
+  sistema.addEventListener('change', () => {
+    let val = sistema.value;
+    inputsRect.style.display = val === 'rect' ? 'block' : 'none';
+    inputsEsfer.style.display = val === 'esfer' ? 'block' : 'none';
+    inputsCilin.style.display = val === 'cilin' ? 'block' : 'none';
+    document.getElementById('resultado').textContent = '';
+    Plotly.purge('grafica');
+  });
+
+  // Botón comenzar
+  const btnComenzar = document.getElementById('btnComenzar');
+  const formulario = document.getElementById('formulario');
+  btnComenzar.addEventListener('click', () => {
+    formulario.style.display = 'block';
+    btnComenzar.style.display = 'none';
+  });
+
+  // Botón graficar
+  const btnGraficar = document.getElementById('btnGraficar');
+  btnGraficar.addEventListener('click', () => {
+    let x, y, z;
+    let resultadoText = '';
+    if (sistema.value === 'rect') {
+      x = parseFloat(document.getElementById('x').value);
+      y = parseFloat(document.getElementById('y').value);
+      z = parseFloat(document.getElementById('z').value);
+
+      let esf = rect_a_esfericas(x, y, z);
+      let cil = rect_a_cilindricas(x, y, z);
+      resultadoText += `Rectangulares: (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})\n`;
+      resultadoText += `Esféricas: r=${esf.r.toFixed(2)}, θ=${esf.theta.toFixed(2)}°, φ=${esf.phi.toFixed(2)}°\n`;
+      resultadoText += `Cilíndricas: ρ=${cil.rho.toFixed(2)}, φ=${cil.phi.toFixed(2)}°, z=${cil.z_cil.toFixed(2)}`;
+
+    } else if (sistema.value === 'esfer') {
+      let r = parseFloat(document.getElementById('r').value);
+      let theta = parseFloat(document.getElementById('theta').value);
+      let phi = parseFloat(document.getElementById('phi').value);
+      let rect = esfericas_a_rect(r, theta, phi);
+      let cil = rect_a_cilindricas(rect.x, rect.y, rect.z);
+      x = rect.x; y = rect.y; z = rect.z;
+      resultadoText += `Esféricas: r=${r.toFixed(2)}, θ=${theta.toFixed(2)}°, φ=${phi.toFixed(2)}°\n`;
+      resultadoText += `Rectangulares: (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})\n`;
+      resultadoText += `Cilíndricas: ρ=${cil.rho.toFixed(2)}, φ=${cil.phi.toFixed(2)}°, z=${cil.z_cil.toFixed(2)}`;
+
+    } else if (sistema.value === 'cilin') {
+      let rho = parseFloat(document.getElementById('rho').value);
+      let phi = parseFloat(document.getElementById('phi_cilin').value);
+      let z_cil = parseFloat(document.getElementById('z_cilin').value);
+      let rect = cilindricas_a_rect(rho, phi, z_cil);
+      let esf = rect_a_esfericas(rect.x, rect.y, rect.z);
+      x = rect.x; y = rect.y; z = rect.z;
+      resultadoText += `Cilíndricas: ρ=${rho.toFixed(2)}, φ=${phi.toFixed(2)}°, z=${z_cil.toFixed(2)}\n`;
+      resultadoText += `Rectangulares: (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})\n`;
+      resultadoText += `Esféricas: r=${esf.r.toFixed(2)}, θ=${esf.theta.toFixed(2)}°, φ=${esf.phi.toFixed(2)}`;
+    }
+
+    document.getElementById('resultado').textContent = resultadoText;
+
+    // Graficar con Plotly
+    let data = [{
+      type: 'scatter3d',
+      mode: 'lines+markers',
+      x: [0, x],
+      y: [0, y],
+      z: [0, z],
+      marker: { size: 5, color: 'red' },
+      line: { width: 6, color: 'red' }
+    }];
+
+    let layout = {
+      title: 'Vector en 3D (interactivo)',
+      scene: {
+        xaxis: { title: 'X' },
+        yaxis: { title: 'Y' },
+        zaxis: { title: 'Z' }
+      },
+      margin: { l:0, r:0, b:0, t:40 }
+    };
+
+    Plotly.newPlot('grafica', data, layout);
+  });
+</script>
+
+</body>
+</html>
